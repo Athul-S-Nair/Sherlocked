@@ -91,6 +91,7 @@ export default async function handler(req, res) {
       console.warn('[chat] fallback line used:', failures.join(', '));
       return sendJson(res, 200, {
         line: FALLBACK_LINE,
+        fixedLineId: 'james_fallback',
         expression: 'uneasy',
         voice_style: 'stiff',
         tell: 'assure',

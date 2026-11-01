@@ -2,7 +2,7 @@
 
 A conversational-AI interrogation game. You are Sherlock Holmes questioning James the butler. Voices by ElevenLabs.
 
-**Status:** Milestone 1 (text-only engine) is done. Voice, the scene, and polish come next.
+**Status:** Milestones 1 (text engine) and 2 (voice) are done. The scene and polish come next.
 
 ## Run locally
 ```
@@ -10,7 +10,10 @@ npm install
 copy .env.example .env.local     # then fill in the values below
 npm run dev
 ```
-Open http://localhost:5173/test/chat.html. Unit tests: `npm test`.
+- http://localhost:5173/test/chat.html: play the interview by typing or push-to-talk (Chrome/Edge), with James's voice.
+- http://localhost:5173/tools/voice.html: hear each `voice_style` and tune `config/voice-styles.js` (dev only).
+- `npm run audio:fixed`: pre-generate the fixed lines into `public/assets/audio/` (skips existing files).
+- `npm test`: unit tests.
 
 ## Environment variables
 | Name | Required | Default | Purpose |
@@ -21,6 +24,13 @@ Open http://localhost:5173/test/chat.html. Unit tests: `npm test`.
 | `LLM_MODEL` | no | `llama-3.3-70b-versatile` | Model name |
 | `LLM_MAX_TOKENS` | no | `150` | Max output tokens per reply |
 | `CHAT_RATE_LIMIT_PER_MIN` | no | `20` | Per-IP requests per minute on `/api/chat` |
+| `ELEVENLABS_API_KEY` | for voice | | ElevenLabs API key |
+| `ELEVENLABS_VOICE_ID` | for voice | | James's voice |
+| `ELEVENLABS_HOLMES_VOICE_ID` | for fixed lines | | Holmes's voice (evidence observations only) |
+| `ELEVENLABS_MODEL` | no | `eleven_multilingual_v2` | `eleven_flash_v2_5` costs about half |
+| `TTS_DAILY_CAP` | no | `60` | Max live TTS calls per day |
+
+Without ElevenLabs configured, the game still works with the browser voice.
 
 On Vercel, set these under Project → Settings → Environment Variables.
 
@@ -34,4 +44,11 @@ On Vercel, set these under Project → Settings → Environment Variables.
 - `vite.config.js`: serves `api/*.js` during `npm run dev`, so no Vercel CLI is needed locally.
 - `data/fixed-lines.json`: the pre-recorded lines (Section D).
 
-The rate limiter is in memory, so on serverless it's best-effort for each instance.
+- `api/tts.js`: `POST /api/tts`. Voices only the last line in a signed game state (so it can't be used as a general TTS proxy), streams ElevenLabs audio, caches by hash of voice/model/settings/text, caps 9 calls per session and `TTS_DAILY_CAP` per day, and logs estimated credits.
+- `config/voice-styles.js`: the one file mapping each `voice_style` to ElevenLabs settings (or audio tags on v3/v4) and browser pitch/rate.
+- `src/voice.js`: client voice chain (fixed mp3, then ElevenLabs stream, then browser SpeechSynthesis, sticky for the session after a failure or 4 s with no audio).
+- `src/speech-input.js`: push-to-talk via browser SpeechRecognition (free, Chrome/Edge).
+
+The rate limiter, TTS caps and TTS cache are in memory, so on serverless they're best-effort for each instance.
+
+Voices by ElevenLabs.

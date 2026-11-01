@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voice test: The Blue Necklace</title>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; max-width: 980px; margin: 20px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  h2 { font-size: 15px; margin: 22px 0 6px; }
+  .note { color: #666; font-size: 13px; }
+  #status { padding: 8px 10px; background: #f3f3f3; border-radius: 6px; font-family: monospace; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px 4px; vertical-align: middle; border-bottom: 1px solid #eee; }
+  td.name { font-family: monospace; white-space: nowrap; width: 1%; }
+  td.btns { white-space: nowrap; width: 1%; }
+  td input { width: 100%; box-sizing: border-box; padding: 4px; }
+  td.res { font: 12px monospace; color: #555; width: 30%; }
+  button { padding: 4px 9px; cursor: pointer; }
+  select { padding: 3px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  #log { font: 12px monospace; background: #f7f7f7; padding: 8px; height: 160px; overflow-y: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Voice test (Milestone 2)</h1>
+<p class="note">Each ElevenLabs click on a new line/setting spends credits (about 1 credit per character on Multilingual v2 / v4, half on Flash / v4 Turbo). Repeats are cached on the server and free. Edit <code>config/voice-styles.js</code> to tune; the page picks up changes on reload.</p>
+<div id="status"></div>
+
+<div class="row">
+  Model:
+  <select id="model">
+    <option value="">server default (ELEVENLABS_MODEL)</option>
+    <option>eleven_multilingual_v2</option>
+    <option>eleven_flash_v2_5</option>
+    <option>eleven_v4</option>
+    <option>eleven_v4_turbo</option>
+    <option>eleven_v3</option>
+  </select>
+  <button id="stop">Stop</button>
+  <button id="reset">Reset browser fallback</button>
+</div>
+
+<h2>voice_style</h2>
+<table id="styles"></table>
+
+<h2>Fixed lines (static files)</h2>
+<p class="note">Generate them with <code>npm run audio:fixed</code>. Missing files fall back to the browser voice.</p>
+<table id="fixed"></table>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script type="module">
+import { Voice } from '/src/voice.js';
+import { VOICE_STYLES, SAMPLE_LINES } from '/config/voice-styles.js';
+import fixedLines from '/data/fixed-lines.json';
+
+const voice = new Voice();
+const $ = (id) => document.getElementById(id);
+
+function log(msg) {
+  $('log').textContent += `${new Date().toLocaleTimeString()}  ${msg}\n`;
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function status() {
+  const bv = voice.browserVoice ? `${voice.browserVoice.name} (${voice.browserVoice.lang})` : 'none loaded yet';
+  $('status').textContent =
+    `Live engine: ${voice.useBrowser ? 'BROWSER (sticky fallback: ' + voice.fallbackReason + ')' : 'ElevenLabs'}  |  Browser voice: ${bv}`;
+}
+if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', () => setTimeout(status, 0));
+status();
+
+function describe(r) {
+  const m = r.meta || {};
+  const parts = [r.engine];
+  if (m.cache) parts.push(`cache ${m.cache}`);
+  if (m.firstAudioMs != null) parts.push(`${m.firstAudioMs} ms to audio`);
+  if (m.chars) parts.push(`${m.chars} chars`);
+  if (r.reason) parts.push(`(${r.reason})`);
+  return parts.join(' · ');
+}
+
+for (const style of Object.keys(VOICE_STYLES)) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="name">${style}</td><td><input value=""></td>
+    <td class="btns"><button data-k="el">ElevenLabs</button> <button data-k="br">Browser</button></td><td class="res"></td>`;
+  const input = tr.querySelector('input');
+  const res = tr.querySelector('.res');
+  input.value = SAMPLE_LINES[style];
+  tr.querySelector('[data-k=el]').onclick = async () => {
+    res.textContent = '…';
+    const text = input.value.trim();
+    const ttsBody = { text, voice_style: style, model: $('model').value || undefined };
+    const r = await voice.speak({ text, voiceStyle: style, ttsBody });
+    res.textContent = describe(r);
+    log(`${style}: ${describe(r)}`);
+    status();
+  };
+  tr.querySelector('[data-k=br]').onclick = async () => {
+    voice.stop();
+    res.textContent = 'browser…';
+    await voice.speakBrowser(input.value.trim(), style);
+    res.textContent = 'browser · done';
+  };
+  $('styles').appendChild(tr);
+}
+
+for (const line of fixedLines) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="name">${line.line_id}</td><td></td><td class="btns"><button>Play</button></td><td class="res"></td>`;
+  tr.children[1].textContent = line.text;
+  tr.querySelector('button').onclick = async () => {
+    const r = await voice.speak({ text: line.text, voiceStyle: line.voice_style || 'formal_steady', fixedLineId: line.line_id });
+    tr.querySelector('.res').textContent = describe(r);
+    log(`${line.line_id}: ${describe(r)}`);
+  };
+  $('fixed').appendChild(tr);
+}
+
+$('stop').onclick = () => voice.stop();
+$('reset').onclick = () => { voice.useBrowser = false; voice.fallbackReason = null; status(); log('fallback reset: next live line tries ElevenLabs again'); };
+</script>
+</body>
+</html>

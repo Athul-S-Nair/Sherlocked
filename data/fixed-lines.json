@@ -2,6 +2,7 @@
   { "line_id": "james_opening", "speaker": "james", "voice_style": "formal_steady", "text": "Mr. Holmes, sir. A dreadful business. Her Ladyship is quite beside herself. I shall help in any way I can." },
   { "line_id": "james_walkout", "speaker": "james", "voice_style": "indignant", "text": "I must decline to say anything further, sir. I should like to speak to Her Ladyship's solicitor." },
   { "line_id": "james_timeout", "speaker": "james", "voice_style": "stiff", "text": "If that is all, sir, I have duties to attend to." },
+  { "line_id": "james_fallback", "speaker": "james", "voice_style": "stiff", "text": "I assure you, sir, I would rather not say." },
   { "line_id": "holmes_letter", "speaker": "holmes", "text": "A moneylender's letter, and not addressed to the master of the house." },
   { "line_id": "holmes_key", "speaker": "holmes", "text": "Two keys, Watson. One in Her Ladyship's purse. The other hangs in the butler's pantry." },
   { "line_id": "holmes_emma", "speaker": "holmes", "text": "The new maid, seen near the study at nine. Interesting, though perhaps not as interesting as it appears." }

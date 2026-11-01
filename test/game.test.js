@@ -6,6 +6,8 @@ import {
 } from '../api/_lib/game.js';
 import { validateReply } from '../api/_lib/validate.js';
 import { encodeState, decodeState } from '../api/_lib/state-token.js';
+import { buildTtsBody } from '../api/_lib/elevenlabs.js';
+import { VOICE_STYLES } from '../config/voice-styles.js';
 
 process.env.STATE_SECRET = 'test-secret-at-least-16-chars';
 
@@ -142,6 +144,26 @@ test('state token rejects tampering', () => {
   const forgedPayload = Buffer.from(JSON.stringify(forged)).toString('base64url');
   assert.equal(decodeState(`${forgedPayload}.${sig}`), null);
   assert.equal(decodeState('garbage'), null);
+});
+
+test('last_spoken tracks what /api/tts may voice', () => {
+  assert.equal(newState().last_spoken.fixed, true);
+  const { s } = play([[say('Hello'), { line: 'Good evening, sir.', voice_style: 'stiff' }]]);
+  assert.deepEqual(s.last_spoken, { line: 'Good evening, sir.', voice_style: 'stiff', fixed: false });
+  const { s: walked } = play([[say('You villain'), { player_tone: 'hostile', trust_delta: -15 }]]);
+  assert.equal(walked.last_spoken.fixed, true);
+});
+
+test('ElevenLabs request body per model family', () => {
+  const v2 = buildTtsBody('Sir.', 'trembling', 'eleven_multilingual_v2');
+  assert.equal(v2.text, 'Sir.');
+  assert.equal(v2.voice_settings.stability, VOICE_STYLES.trembling.eleven.stability);
+  assert.ok('style' in v2.voice_settings && 'speed' in v2.voice_settings);
+  const v4 = buildTtsBody('Sir.', 'trembling', 'eleven_v4');
+  assert.equal(v4.text, `${VOICE_STYLES.trembling.tag} Sir.`);
+  assert.deepEqual(Object.keys(v4.voice_settings).sort(), ['similarity_boost', 'stability']);
+  assert.equal(buildTtsBody('Sir.', 'trembling', 'eleven_v3').voice_settings.stability, 0);
+  assert.equal(buildTtsBody('Sir.', 'formal_steady', 'eleven_v3').voice_settings.stability, 0.5);
 });
 
 test('fixed lines match data/fixed-lines.json', () => {

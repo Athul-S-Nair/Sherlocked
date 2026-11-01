@@ -14,6 +14,7 @@ export const FIXED = {
   james_opening: "Mr. Holmes, sir. A dreadful business. Her Ladyship is quite beside herself. I shall help in any way I can.",
   james_walkout: "I must decline to say anything further, sir. I should like to speak to Her Ladyship's solicitor.",
   james_timeout: 'If that is all, sir, I have duties to attend to.',
+  james_fallback: FALLBACK_LINE,
 };
 
 export const HINTS = {
@@ -35,6 +36,8 @@ export function newState() {
     e2_turn: null,
     ended: 'none',
     history: [{ holmes: null, james: FIXED.james_opening }],
+    // What /api/tts may voice for this state: only the line the server produced last.
+    last_spoken: { line: FIXED.james_opening, voice_style: 'formal_steady', fixed: true },
   };
 }
 
@@ -124,6 +127,7 @@ export function applyTurn(s, action, reply, confessionUnlocked) {
       turn,
       ended: 'confession',
       history: [...s.history, { holmes, james: reply.line }],
+      last_spoken: { line: reply.line, voice_style: 'broken_quiet', fixed: false },
     };
     return {
       state,
@@ -177,6 +181,7 @@ export function applyTurn(s, action, reply, confessionUnlocked) {
     state.ended = 'timeout';
     followup = { line: FIXED.james_timeout, fixedLineId: 'james_timeout', voice_style: 'stiff', expression: 'composed' };
   }
+  state.last_spoken = { line, voice_style, fixed: fixedLineId !== null };
 
   return {
     state,

@@ -39,7 +39,7 @@ function readJsonBody(req) {
   });
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   // Load every var from .env / .env.local (not just VITE_*) into process.env
   // for the API handlers. These are never exposed to the browser bundle.
   // loadEnv prefers values already in process.env, so first reset process.env to
@@ -51,5 +51,7 @@ export default defineConfig(({ mode }) => {
     else delete process.env[key];
   }
   Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
+  // Lets /api/tts accept free text for the voice test page. Never set in production.
+  if (command === 'serve') process.env.APP_DEV_SERVER = '1';
   return { plugins: [apiDevServer()] };
 });

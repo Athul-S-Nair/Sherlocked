@@ -7,7 +7,7 @@
   body { font: 14px/1.45 system-ui, sans-serif; max-width: 900px; margin: 20px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 18px; margin: 0 0 8px; }
   #meters { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 10px; background: #f3f3f3; border-radius: 6px; font-family: monospace; }
-  #log { border: 1px solid #ccc; border-radius: 6px; height: 380px; overflow-y: auto; padding: 8px 10px; margin: 10px 0; background: #fff; }
+  #log { border: 1px solid #ccc; border-radius: 6px; height: 360px; overflow-y: auto; padding: 8px 10px; margin: 10px 0; background: #fff; }
   .holmes { color: #1a4f8b; margin-top: 8px; }
   .james { margin-top: 2px; }
   .meta { color: #777; font: 12px monospace; }
@@ -16,18 +16,22 @@
   form { display: flex; gap: 6px; }
   #text { flex: 1; padding: 6px; }
   button { padding: 6px 10px; cursor: pointer; }
+  #mic { user-select: none; touch-action: none; }
+  #mic.on { background: #c62828; color: #fff; border-color: #c62828; }
   .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
   details { margin-top: 10px; }
   pre { background: #f7f7f7; padding: 8px; overflow-x: auto; font-size: 12px; }
+  .note { color: #666; font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>Engine test (Milestone 1, text only)</h1>
+<h1>Engine test (text, voice and push-to-talk)</h1>
 <div id="meters">no game yet</div>
 <div id="log"></div>
 <form id="say">
   <input id="text" placeholder="Ask James something..." autocomplete="off">
   <button>Say</button>
+  <button type="button" id="mic" hidden title="Hold to talk, release to send. Or hold Space when the text box is not focused.">Hold to talk</button>
 </form>
 <div class="row">
   Present (uses the text box as an optional message):
@@ -36,12 +40,25 @@
   <button data-ev="E3">E3 Emma statement</button>
   <button id="new">New game</button>
 </div>
+<div class="row">
+  James's voice:
+  <select id="voiceMode">
+    <option value="browser" selected>Browser voice (free)</option>
+    <option value="elevenlabs">ElevenLabs (spends credits)</option>
+    <option value="off">Off</option>
+  </select>
+  <span id="micNote" class="note"></span>
+</div>
 <details><summary>Last raw response</summary><pre id="raw"></pre></details>
 
-<script>
+<script type="module">
+import { Voice } from '/src/voice.js';
+import { createPushToTalk } from '/src/speech-input.js';
+
 let token = null;
 let busy = false;
 const $ = (id) => document.getElementById(id);
+const voice = new Voice();
 
 function add(cls, text) {
   const div = document.createElement('div');
@@ -49,9 +66,29 @@ function add(cls, text) {
   div.textContent = text;
   $('log').appendChild(div);
   $('log').scrollTop = $('log').scrollHeight;
+  return div;
 }
 
-function render(r) {
+// Speaks one line according to the selected mode. Fixed lines use their static file in
+// every mode except Off (free once generated); live lines only use ElevenLabs when selected.
+async function speakLine({ text, voiceStyle, fixedLineId, stateToken }) {
+  const mode = $('voiceMode').value;
+  if (mode === 'off') return null;
+  if (mode === 'browser' && !fixedLineId) {
+    voice.stop();
+    await voice.speakBrowser(text, voiceStyle);
+    return { engine: 'browser' };
+  }
+  return voice.speak({ text, voiceStyle, fixedLineId, ttsBody: stateToken ? { stateToken } : undefined });
+}
+
+function describeVoice(v) {
+  if (!v) return '';
+  const m = v.meta || {};
+  return ` | voice=${v.engine}${m.cache ? ' cache=' + m.cache : ''}${m.firstAudioMs != null ? ' ' + m.firstAudioMs + 'ms' : ''}${v.reason ? ' (' + v.reason + ')' : ''}`;
+}
+
+async function render(r) {
   $('raw').textContent = JSON.stringify(r, null, 2);
   if (r.state) {
     const s = r.state;
@@ -59,25 +96,33 @@ function render(r) {
       `Turn ${s.turn} of ${s.max_turns} | Pressure ${s.pressure} | Trust ${s.trust} | ` +
       `Stress ${s.stress_state} | Evidence [${s.evidence_presented.join(', ')}] | Ended ${s.ended}`;
   }
+  if (r.hint) add('sys', r.hint);
   if (r.line) {
+    // Subtitles first; the voice never blocks them.
     add('james', `James: ${r.line}`);
     const d = r.debug;
     const applied = d && d.applied
       ? ` | tone=${d.applied.player_tone} dP=${d.applied.pressure_delta} dT=${d.applied.trust_delta} (model dP=${d.model.pressure_delta} dT=${d.model.trust_delta})`
       : '';
-    add('meta', `[${r.expression} / ${r.voice_style} / tell=${r.tell}${r.fixedLineId ? ' / fixed:' + r.fixedLineId : ''}]` +
+    const meta = add('meta', `[${r.expression} / ${r.voice_style} / tell=${r.tell}${r.fixedLineId ? ' / fixed:' + r.fixedLineId : ''}]` +
       applied + (d && d.retries ? ` | retries=${d.retries} (${d.failures.join(', ')})` : '') +
       (d && d.fallback ? ' | FALLBACK' : '') + (d && d.confession_unlocked ? ' | CONFESSION UNLOCKED' : ''));
+    const spoken = await speakLine({
+      text: r.line, voiceStyle: r.voice_style, fixedLineId: r.fixedLineId, stateToken: r.fixedLineId ? null : r.stateToken,
+    });
+    meta.textContent += describeVoice(spoken);
   }
-  if (r.followup) add('james', `James: ${r.followup.line}`);
-  if (r.hint) add('sys', r.hint);
+  if (r.followup) {
+    add('james', `James: ${r.followup.line}`);
+    await speakLine({ text: r.followup.line, voiceStyle: r.followup.voice_style, fixedLineId: r.followup.fixedLineId });
+  }
   if (r.ended && r.ended !== 'none') {
     add('end', { confession: 'CASE CLOSED: James confessed.', walkout: 'James walked out. You lose.', timeout: 'Out of turns. You lose.' }[r.ended]);
   }
 }
 
 async function send(payload) {
-  if (busy) return;
+  if (busy) return false;
   busy = true;
   try {
     const res = await fetch('/api/chat', {
@@ -92,6 +137,7 @@ async function send(payload) {
       return false;
     }
     if (r.stateToken) token = r.stateToken;
+    busy = false; // allow the next message while James is still speaking
     render(r);
     return true;
   } catch (e) {
@@ -103,27 +149,65 @@ async function send(payload) {
 }
 
 function newGame() {
+  voice.stop();
   token = null;
   $('log').innerHTML = '';
   send({});
 }
 
-$('say').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const text = $('text').value.trim();
-  if (!text || !token) return;
+async function sayText(text) {
+  if (!text) return;
+  if (!token) { add('sys', 'Watson: The interview has not begun, Holmes. Click "New game".'); return; }
+  voice.stop();
   add('holmes', `Holmes: ${text}`);
   if (await send({ stateToken: token, action: { type: 'say', text } })) $('text').value = '';
+}
+
+$('say').addEventListener('submit', (e) => {
+  e.preventDefault();
+  sayText($('text').value.trim());
 });
 
 document.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', async () => {
   if (!token) return;
+  voice.stop();
   const text = $('text').value.trim();
   add('holmes', `Holmes presents ${b.textContent}${text ? ': ' + text : ''}`);
   if (await send({ stateToken: token, action: { type: 'present', evidence_id: b.dataset.ev, text } })) $('text').value = '';
 }));
 
 $('new').addEventListener('click', newGame);
+
+// Push-to-talk: hold the button (or Space outside the text box), release to send.
+const ptt = createPushToTalk({
+  onInterim: (t) => { $('text').value = t; },
+  onFinal: (t) => { $('mic').classList.remove('on'); if (t) sayText(t); },
+  onError: (msg) => { $('mic').classList.remove('on'); $('micNote').textContent = msg; },
+});
+if (ptt.supported) {
+  $('mic').hidden = false;
+  $('micNote').textContent = 'Hold "Hold to talk" (or Space) and speak; release to send.';
+  const down = () => {
+    if ($('mic').classList.contains('on')) return;
+    voice.stop(); // don't let James's voice leak into the mic
+    $('micNote').textContent = 'Listening...';
+    $('mic').classList.add('on');
+    ptt.start();
+  };
+  const up = () => { if ($('mic').classList.contains('on')) { $('micNote').textContent = ''; ptt.stop(); } };
+  $('mic').addEventListener('pointerdown', down);
+  $('mic').addEventListener('pointerup', up);
+  $('mic').addEventListener('pointerleave', up);
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !e.repeat && document.activeElement !== $('text')) { e.preventDefault(); down(); }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && document.activeElement !== $('text')) { e.preventDefault(); up(); }
+  });
+} else {
+  $('micNote').textContent = 'Voice input needs Chrome or Edge (not available in this browser).';
+}
+
 newGame();
 </script>
 </body>
