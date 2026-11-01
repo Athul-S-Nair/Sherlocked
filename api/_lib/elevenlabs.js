@@ -60,11 +60,15 @@ export function requestSpeech({ voiceId, body, stream, signal }) {
 /** Turns a failed ElevenLabs response into a short error code and message. */
 export async function describeFailure(res) {
   const text = await res.text().catch(() => '');
-  let status = '';
-  try { status = JSON.parse(text)?.detail?.status || ''; } catch { /* not JSON */ }
-  const quota = status === 'quota_exceeded' || /quota/i.test(text);
+  let detail = {};
+  try { detail = JSON.parse(text)?.detail || {}; } catch { /* not JSON */ }
+  const quota = detail.status === 'quota_exceeded' || /quota/i.test(text);
   return {
-    code: quota ? 'quota_exceeded' : res.status === 401 ? 'unauthorized' : res.status === 429 ? 'busy' : 'upstream_error',
+    code: quota ? 'quota_exceeded'
+      : res.status === 402 ? (detail.code || 'payment_required') // e.g. paid_plan_required: library voice on the free plan
+      : res.status === 401 ? 'unauthorized'
+      : res.status === 429 ? 'busy'
+      : 'upstream_error',
     message: `ElevenLabs HTTP ${res.status}: ${text.slice(0, 300)}`,
   };
 }
