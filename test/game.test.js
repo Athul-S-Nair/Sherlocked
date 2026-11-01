@@ -39,7 +39,7 @@ test('stress bands, with breaking reserved for the confession', () => {
 test('main route: letter, key, empathy, then confession on turn 4', () => {
   const { s } = play([
     [present('E1'), { pressure_delta: 2 }],
-    [present('E2'), {}],
+    [present('E2'), { trust_delta: -5 }], // evidence never costs trust (seen live from the model)
     [say('You did it for Peter, did you not?'), { player_tone: 'empathetic', pressure_delta: 0, trust_delta: 0 }],
   ]);
   assert.equal(s.pressure, 70);

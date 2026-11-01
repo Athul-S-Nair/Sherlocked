@@ -93,6 +93,11 @@ export function computeDeltas(s, action, reply) {
     pd = 0; td = 0; // bluffs, unrelated questions, prompt injection: no state change
   }
 
+  // Presenting evidence is the player's job, not an insult: it never costs trust unless
+  // the accompanying message is itself hostile. Otherwise the main route (E1, E2, empathy)
+  // can fall short of the trust >= 30 gate on the model's whim.
+  if (isPresent && tone !== 'hostile' && tone !== 'thief_insult') td = Math.max(td, 0);
+
   if (tone === 'emma_stakes') pd = Math.max(pd, 20);
 
   const after = isNewEvidence ? [...before, action.evidence_id] : before;
