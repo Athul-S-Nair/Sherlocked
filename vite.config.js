@@ -42,6 +42,14 @@ function readJsonBody(req) {
 export default defineConfig(({ mode }) => {
   // Load every var from .env / .env.local (not just VITE_*) into process.env
   // for the API handlers. These are never exposed to the browser bundle.
+  // loadEnv prefers values already in process.env, so first reset process.env to
+  // the shell's original environment; otherwise edits to .env.local would be
+  // ignored after the first load (the dev server restarts in the same process).
+  const shellEnv = (globalThis.__shellEnv ??= { ...process.env });
+  for (const key of Object.keys(process.env)) {
+    if (key in shellEnv) process.env[key] = shellEnv[key];
+    else delete process.env[key];
+  }
   Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
   return { plugins: [apiDevServer()] };
 });
