@@ -4,6 +4,8 @@
 //   3. fallback      -> browser SpeechSynthesis. Used for a line if /api/tts errors or gives
 //                       no audio within 4 s, and then for the rest of the session (sticky).
 // speak() never rejects, so a voice failure can never block subtitles or the game.
+// level() and progress() report on whatever is playing, for the mouth flap and for
+// revealing subtitles in time with the audio.
 import { VOICE_STYLES } from '../config/voice-styles.js';
 
 const FIRST_AUDIO_TIMEOUT_MS = 4000;
@@ -38,6 +40,47 @@ export class Voice {
       voices.find((v) => /Microsoft David/i.test(v.name)) ||
       voices.find((v) => v.default) ||
       voices[0];
+  }
+
+  // Call from a click (e.g. Begin): browsers only start an AudioContext after a user gesture.
+  // The context feeds an analyser that measures the voice's loudness for the mouth flap.
+  unlock() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!this.ctx) {
+      this.ctx = new AC();
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 512;
+      this.analyser.connect(this.ctx.destination);
+      this.levelBuf = new Uint8Array(this.analyser.fftSize);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  // Loudness of the current line, 0..1. Measured from the audio when it runs through the
+  // analyser; otherwise (browser voice, or no AudioContext) a timed flap while speaking.
+  level() {
+    const c = this.current;
+    if (!c) return 0;
+    if (c.src) {
+      this.analyser.getByteTimeDomainData(this.levelBuf);
+      let sum = 0;
+      for (const v of this.levelBuf) sum += ((v - 128) / 128) ** 2;
+      return Math.min(1, Math.sqrt(sum / this.levelBuf.length) * 5);
+    }
+    if (c.audio && c.audio.paused) return 0;
+    const t = performance.now() / 1000;
+    return Math.max(0, Math.sin(t * 13) * Math.sin(t * 4.7 + 1));
+  }
+
+  // { elapsed, duration } in seconds for the current line (duration null while a stream is
+  // still arriving), or null before playback has started.
+  progress() {
+    const c = this.current;
+    if (!c) return null;
+    if (c.browser) return { elapsed: performance.now() / 1000 - c.start, duration: c.estimate };
+    if (c.audio.paused && c.audio.currentTime === 0) return null;
+    return { elapsed: c.audio.currentTime, duration: Number.isFinite(c.audio.duration) ? c.audio.duration : null };
   }
 
   setMuted(muted) {
@@ -170,6 +213,10 @@ export class Voice {
         if (done) return;
         done = true;
         if (this.stopCurrent === stop) this.stopCurrent = null;
+        if (this.current?.audio === audio) {
+          this.current.src?.disconnect();
+          this.current = null;
+        }
         fn(arg);
       };
       const stop = () => {
@@ -187,8 +234,21 @@ export class Voice {
         finish(firstAudioMs === null ? reject : resolve, firstAudioMs === null ? new Error(msg) : { firstAudioMs });
       });
       if (gen !== this.gen) return stop();
+      this.meter(audio);
       audio.play().catch((err) => finish(reject, new Error(`play blocked: ${err.message}`)));
     });
+  }
+
+  // Routes an element through the analyser (only once the context is running; otherwise it
+  // would play silently) so level() can measure it.
+  meter(audio) {
+    this.current = { audio };
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const src = this.ctx.createMediaElementSource(audio);
+      src.connect(this.analyser);
+      this.current.src = src;
+    } catch { /* plays normally, with the timed flap */ }
   }
 
   // Browser fallback. Resolves when done; a safety timer covers engines that never fire onend.
@@ -202,8 +262,16 @@ export class Voice {
       u.rate = cfg.rate;
       u.pitch = cfg.pitch;
       u.volume = cfg.volume;
-      const safety = setTimeout(resolve, 2000 + text.split(/\s+/).length * 700);
-      u.onend = u.onerror = () => { clearTimeout(safety); resolve(); };
+      const words = text.split(/\s+/).length;
+      const current = { browser: true, start: performance.now() / 1000, estimate: (words * 0.4) / cfg.rate };
+      this.current = current;
+      const done = () => {
+        clearTimeout(safety);
+        if (this.current === current) this.current = null;
+        resolve();
+      };
+      const safety = setTimeout(done, 2000 + words * 700);
+      u.onend = u.onerror = done;
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
     });

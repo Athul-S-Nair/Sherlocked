@@ -19,7 +19,13 @@
       <div class="meter"><span>Pressure</span><div class="bar"><i id="pressureBar"></i></div></div>
       <div class="meter"><span>Trust</span><div class="bar trust"><i id="trustBar"></i></div></div>
     </div>
-    <button type="button" id="lean" class="frame chip" title="Hold to lean in (or hold the right mouse button)"><span class="alert">!</span> Lean In</button>
+    <div id="controls">
+      <button type="button" id="transcriptBtn" class="frame chip" title="Read the conversation so far">Transcript</button>
+      <button type="button" id="mute" class="frame chip" aria-pressed="false" title="Mute voices">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10L5 10H2z" fill="currentColor"/><path class="waves" d="M11 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6 6 0 0 1 0 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="cross" d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" id="lean" class="frame chip" title="Hold to lean in (or hold the right mouse button)"><span class="alert">!</span> Lean In</button>
+    </div>
 
     <div id="tooltip" hidden></div>
 
@@ -85,6 +91,7 @@
               <li>Type and press Enter, or hold <b>Space</b> / <i>Hold to talk</i> to speak (Chrome, Edge).</li>
               <li>Move the mouse to the screen edges, or drag, to look around.</li>
               <li>Hold right-click or <i>Lean In</i> to study his face.</li>
+              <li>Stuck? Click <b>Watson's chair</b>, to your right, for a hint.</li>
             </ul>
           </section>
         </div>
@@ -97,7 +104,19 @@
       <div class="panel frame center">
         <h1 id="endTitle"></h1>
         <p id="endText"></p>
-        <div class="buttons"><button type="button" id="againBtn" class="frame">Play again</button></div>
+        <div class="buttons">
+          <button type="button" id="endTranscript" class="frame">Read transcript</button>
+          <button type="button" id="againBtn" class="frame">Play again</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transcript of the interview, from the Transcript button or the ending. -->
+    <div id="transcript" class="backdrop" hidden>
+      <div class="panel frame wide">
+        <h2>Transcript</h2>
+        <div id="transcriptList"></div>
+        <div class="buttons"><button type="button" id="closeTranscript" class="frame">Close</button></div>
       </div>
     </div>
   </div>

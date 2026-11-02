@@ -499,6 +499,30 @@ export function makeJames(expression) {
   return c;
 }
 
+// Overlays drawn on the generated James each frame (layout coordinates, plus his sway).
+// open: 0..1 mouth opening from the voice level.
+export function drawMouth(g, expression, open, dx, dy) {
+  const h = open > 0.55 ? 3 : open > 0.2 ? 2 : 0;
+  if (!h) return;
+  const face = FACES[expression] || FACES.composed;
+  const fx = L.james.face.x + dx, fy = L.james.face.y + (face.dy || 0) + dy;
+  R(g, P.skin, fx - 5, fy + 8, 10, h + 3);
+  R(g, '#3a1410', fx - 3, fy + 9, 6, h);
+  R(g, P.lip, fx - 3, fy + 9 + h, 6, 1);
+  R(g, P.lip, fx - 2, fy + 8, 4, 1);
+}
+
+// Eyes slid to one side: the "thinking" glance away while he considers his answer.
+export function drawGlance(g, expression, dx, dy) {
+  const face = FACES[expression] || FACES.composed;
+  if (face.eyesDown) return;
+  const fx = L.james.face.x + dx, fy = L.james.face.y + (face.dy || 0) + dy;
+  for (const ex of [fx - 8, fx + 3]) {
+    R(g, P.skinShade, ex, fy - 3, 5, face.narrow ? 1 : 2);
+    R(g, P.eye, ex + 3, fy - 3, 2, face.narrow ? 1 : 2);
+  }
+}
+
 // ---- the desk and everything on it that isn't evidence (layout LAYOUT.deskLayer) -----------
 
 export function makeDesk() {

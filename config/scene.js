@@ -100,7 +100,14 @@ export const PROPS = [
   { id: 'statement', image: 'prop_statement', title: 'Staff statement', evidenceId: 'E3', lineId: 'holmes_emma', x: 18, y: 172, w: 38, h: 30 },
 ];
 
+// Clickable spots in the room itself (not on the desk). Watson's chair gives a hint.
+export const HOTSPOTS = [
+  { id: 'watson', layer: 'wall', title: 'Ask Watson for a hint', x: 300, y: 96, w: 82, h: 96 },
+];
+
 export const EFFECTS = {
+  fogAlpha: 0.09,       // drifting haze (pipe smoke and damp) over the room
+  fogSpeed: 4,          // px per second
   rainDrops: 70,
   wash: 'rgba(4, 10, 9, 0.4)',   // darkens everything before the lights are added
   // [x, y, radius, alpha, rgb, layer]; alpha is scaled by the flicker.
@@ -114,6 +121,9 @@ export const EFFECTS = {
   ],
   flickerCalm: 0.04,    // lamp flicker amplitude at zero pressure
   flickerTense: 0.18,   // ...and at full pressure
+  thinkingFlicker: 2.2, // flicker multiplier while James considers his answer
+  swayPx: 1,            // idle sway, in pixels
+  jitterFrom: 51,       // pressure at which James starts to fidget (rattled and above)
   vignetteCalm: 0.5,
   vignetteTense: 0.85,
   grainAlpha: 0.04,

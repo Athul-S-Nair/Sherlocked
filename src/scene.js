@@ -1,13 +1,16 @@
 // The sitting room: a low-res canvas (VIEW.w x VIEW.h) scaled up with nearest-neighbour.
 // Layers, far to near: rain outside the window, the back wall, James in his chair, the
-// desk with the evidence, then screen overlays (lamp light, vignette, grain).
+// desk with the evidence, then screen overlays (lamp light, fog, vignette, grain).
+// James sways while idle, fidgets under pressure, glances away while thinking, and his
+// mouth follows the loudness of his voice (overlays on the generated art).
 // The camera is a head turn (pan, -1..1) plus a lean-in zoom toward James's face.
 import {
-  VIEW, PAN, LEAN, SPEED, PALETTE as C, IMAGES, LAYOUT as L, PROPS, EFFECTS as FX,
+  VIEW, PAN, LEAN, SPEED, PALETTE as C, IMAGES, LAYOUT as L, PROPS, HOTSPOTS, EFFECTS as FX,
 } from '../config/scene.js';
 import { loadImages } from './assets.js';
 import {
   makeBackWall, makeChair, makeJames, makeDesk, makeProp, drawOutside, drawFire, drawClock, drawCandleFlame,
+  drawMouth, drawGlance,
 } from './scene-art.js';
 
 const CX = VIEW.w / 2;
@@ -41,6 +44,10 @@ export class Scene {
     this.pressure = 0;    // 0..100, drives flicker and vignette
     this.time = 0;
     this.zoom = { z: 1, ox: 0, oy: 0 };
+    this.thinking = false;     // James is considering his answer
+    this.mouthLevel = () => 0; // set by the game: the voice level while James speaks
+    this.jitter = { x: 0, y: 0, next: 0 };
+    this.fog = makeFog();
 
     this.rain = makeRain();
     this.grain = makeGrain();
@@ -109,15 +116,24 @@ export class Scene {
   }
 
   // Topmost prop under an internal-pixel point, following the zoom and the desk's parallax.
+  // Desk props first (they are nearest), then hotspots in the room such as Watson's chair.
   propAt(ix, iy) {
     const { z, ox, oy } = this.zoom;
-    const x = (ix - ox) / z - (CX - this.offset(SPEED.desk));
+    const sx = (ix - ox) / z;
     const y = (iy - oy) / z;
-    for (let i = PROPS.length - 1; i >= 0; i--) {
-      const p = PROPS[i];
-      if (x >= p.x - 2 && x < p.x + p.w + 2 && y >= p.y - 2 && y < p.y + p.h + 2) return p;
-    }
+    const hit = (p, layer) => {
+      const x = sx - (CX - this.offset(SPEED[layer]));
+      return x >= p.x - 2 && x < p.x + p.w + 2 && y >= p.y - 2 && y < p.y + p.h + 2;
+    };
+    for (let i = PROPS.length - 1; i >= 0; i--) if (hit(PROPS[i], 'desk')) return PROPS[i];
+    if (y < L.deskTop) for (const h of HOTSPOTS) if (hit(h, h.layer)) return h;
     return null;
+  }
+
+  inView(p) {
+    const { z, ox } = this.zoom;
+    const x = (CX - this.offset(SPEED[p.layer || 'desk']) + p.x) * z + ox;
+    return x >= 0 && x + p.w * z <= VIEW.w;
   }
 
   setHover(prop) {
@@ -139,7 +155,9 @@ export class Scene {
 
     if (this.leaning) {
       this.panTarget = approach(this.panTarget, 0, LEAN.ease, dt);
-    } else if (this.interactive && !this.drag && !this.hover) { // hold still over a prop so it can be clicked
+    } else if (this.interactive && !this.drag && !(this.hover && this.inView(this.hover))) {
+      // Hold still over something fully in view so it can be clicked; something still
+      // sliding in from the edge keeps coming.
       this.panTarget = clamp(this.panTarget + this.edge * PAN.maxSpeed * dt, -1, 1);
     }
     this.pan = approach(this.pan, this.panTarget, PAN.ease, dt);
@@ -198,25 +216,30 @@ export class Scene {
       ctx.drawImage(this.art('back_wall'), L.wall.x, 0);
       drawFire(ctx, L.fireplace, this.time, this.fireFlicker());
       drawClock(ctx, L.clock, this.time);
+      for (const h of HOTSPOTS) if (h === this.hover) outline(ctx, h);
     });
     this.inLayer(SPEED.james, () => {
       ctx.drawImage(this.art('james_chair'), L.chair.x, L.chair.y);
+      const [dx, dy] = this.jamesOffset();
       const name = `james_${this.expression}`;
-      ctx.drawImage(this.art(IMAGES[name] ? name : 'james_composed'), L.james.x, L.james.y);
+      const sprite = this.images[name] ? name : 'james_composed';
+      ctx.drawImage(this.art(sprite), L.james.x + dx, L.james.y + dy);
+      if (!this.images[sprite]) {
+        // Overlays fit the generated face only; real art would bring its own mouth frames.
+        if (this.thinking) drawGlance(ctx, this.expression, dx, dy);
+        drawMouth(ctx, this.expression, this.mouthLevel(), dx, dy);
+      }
     });
     this.inLayer(SPEED.desk, () => {
       ctx.drawImage(this.art('desk'), L.deskLayer.x, L.deskLayer.y);
       drawCandleFlame(ctx, L.candle, this.time, f);
       for (const p of PROPS) {
         ctx.drawImage(this.art(p.image), p.x, p.y);
-        if (p === this.hover) {
-          ctx.strokeStyle = C.glowGlass;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(p.x - 2.5, p.y - 2.5, p.w + 5, p.h + 5);
-        }
+        if (p === this.hover) outline(ctx, p);
       }
     });
     this.drawLight(f);
+    this.drawFog();
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.drawVignette();
@@ -232,8 +255,26 @@ export class Scene {
   }
 
   // Lamp flicker: subtle when calm, stronger as Pressure rises.
+  // Idle sway (slow drift and breathing), plus a nervous jitter once the pressure is high.
+  jamesOffset() {
+    const t = this.time;
+    let dx = Math.round(Math.sin(t * 0.45) * FX.swayPx);
+    let dy = Math.round(Math.sin(t * 1.4) * 0.6);
+    if (this.pressure >= FX.jitterFrom) {
+      if (t >= this.jitter.next) {
+        const tense = clamp((this.pressure - FX.jitterFrom) / (100 - FX.jitterFrom), 0, 1);
+        const on = Math.random() < 0.35 + tense * 0.4;
+        this.jitter = { x: on ? (Math.random() < 0.5 ? -1 : 1) : 0, y: on && Math.random() < 0.3 ? 1 : 0, next: t + 0.06 + Math.random() * (0.4 - tense * 0.25) };
+      }
+      dx += this.jitter.x;
+      dy += this.jitter.y;
+    }
+    return [dx, dy];
+  }
+
   flicker() {
-    const amp = lerp(FX.flickerCalm, FX.flickerTense, clamp(this.pressure / 100, 0, 1));
+    let amp = lerp(FX.flickerCalm, FX.flickerTense, clamp(this.pressure / 100, 0, 1));
+    if (this.thinking) amp *= FX.thinkingFlicker;
     const t = this.time;
     const n = Math.sin(t * 7.3) * 0.5 + Math.sin(t * 13.1 + 1.7) * 0.3 + Math.sin(t * 29.7) * 0.2;
     return 1 + amp * n;
@@ -258,6 +299,18 @@ export class Scene {
     for (const l of FX.lights) {
       this.inLayer(SPEED[l.layer], () => glow(ctx, l.x, l.y, l.r, l.a * (l.fire ? fire : f), l.rgb));
     }
+    ctx.restore();
+  }
+
+  // Slow-drifting haze, roughly at wall depth.
+  drawFog() {
+    const ctx = this.ctx;
+    const w = this.fog.width;
+    const x = -((this.offset(SPEED.wall) + Math.round(this.time * FX.fogSpeed)) % w + w) % w;
+    ctx.save();
+    ctx.globalAlpha = FX.fogAlpha;
+    ctx.drawImage(this.fog, x, 0);
+    ctx.drawImage(this.fog, x + w, 0);
     ctx.restore();
   }
 
@@ -290,6 +343,31 @@ function generate(name) {
 }
 
 // ---- effects ---------------------------------------------------------------------------
+
+function outline(ctx, p) {
+  ctx.strokeStyle = C.glowGlass;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(p.x - 2.5, p.y - 2.5, p.w + 5, p.h + 5);
+}
+
+// A tileable band of soft blobs, drawn once.
+function makeFog() {
+  const c = document.createElement('canvas');
+  c.width = VIEW.w * 2;
+  c.height = VIEW.h;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 28; i++) {
+    const x = Math.random() * c.width, y = 30 + Math.random() * (VIEW.h - 60), r = 40 + Math.random() * 70;
+    for (const ox of [-c.width, 0, c.width]) {
+      const grad = g.createRadialGradient(x + ox, y, 0, x + ox, y, r);
+      grad.addColorStop(0, 'rgba(170, 185, 175, 0.55)');
+      grad.addColorStop(1, 'rgba(170, 185, 175, 0)');
+      g.fillStyle = grad;
+      g.fillRect(x + ox - r, y - r, r * 2, r * 2);
+    }
+  }
+  return c;
+}
 
 function glow(ctx, x, y, r, a, rgb) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
