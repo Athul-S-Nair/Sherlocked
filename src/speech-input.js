@@ -15,7 +15,7 @@ const ERRORS = {
  * onFinal(text):   final transcript after release (may be '').
  * onError(msg):    human-readable error.
  */
-export function createPushToTalk({ onInterim, onFinal, onError, lang = 'en-GB' }) {
+export function createPushToTalk({ onInterim, onFinal, onError, lang = 'en-IN' }) {
   if (!Recognition) return { supported: false, start() {}, stop() {} };
 
   let rec = null;

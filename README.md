@@ -2,7 +2,7 @@
 
 A conversational-AI interrogation game. You are Sherlock Holmes questioning James the butler. Voices by ElevenLabs.
 
-**Status:** Milestones 1 (text engine) and 2 (voice) are done. The scene and polish come next.
+**Status:** Milestones 1 (text engine) and 2 (voice) are done. Milestone 3 (scene) is in progress with placeholder art.
 
 ## Run locally
 ```
@@ -10,6 +10,7 @@ npm install
 copy .env.example .env.local     # then fill in the values below
 npm run dev
 ```
+- http://localhost:5173/: the game scene. Add `?voice=browser` (free browser voice for live lines) or `?voice=off` to avoid spending ElevenLabs credits while working on visuals.
 - http://localhost:5173/test/chat.html: play the interview by typing or push-to-talk (Chrome/Edge), with James's voice.
 - http://localhost:5173/tools/voice.html: hear each `voice_style` and tune `config/voice-styles.js` (dev only).
 - `npm run audio:fixed`: pre-generate the fixed lines into `public/assets/audio/` (skips existing files).
@@ -47,6 +48,10 @@ On Vercel, set these under Project → Settings → Environment Variables.
 - `api/tts.js`: `POST /api/tts`. Voices only the last line in a signed game state (so it can't be used as a general TTS proxy), streams ElevenLabs audio, caches by hash of voice/model/settings/text, caps 9 calls per session and `TTS_DAILY_CAP` per day, and logs estimated credits.
 - `config/voice-styles.js`: the one file mapping each `voice_style` to ElevenLabs settings (or audio tags on v3/v4) and browser pitch/rate.
 - `src/voice.js`: client voice chain (fixed mp3, then ElevenLabs stream, then browser SpeechSynthesis, sticky for the session after a failure or 4 s with no audio).
+- `config/scene.js`: every scene tunable (resolution, pan/lean, parallax speeds, palette, layout, art filenames, effects).
+- `src/scene.js`: the 480x270 canvas: parallax layers, head-turn pan (screen edges or drag), lean-in zoom, prop hit-testing that follows the parallax, lamp light, vignette and grain. Art loads by filename from `public/assets/`; anything missing is replaced by a generated placeholder from `src/scene-art.js` (painted once at startup; only rain, fire, candle and clock animate per frame).
+- `src/main.js`: the flow (title, intro video, briefing, interview, ending) and the wiring of the scene to `/api/chat`, reading cards, dialogue, meters, voice and push-to-talk.
+- `src/cutscene.js`: the narrated pixel-art intro (six shots). Its narration is the `intro_*` lines in `data/fixed-lines.json`; `npm run audio:fixed` records them in Holmes's voice (browser voice until then).
 - `src/speech-input.js`: push-to-talk via browser SpeechRecognition (free, Chrome/Edge).
 
 The rate limiter, TTS caps and TTS cache are in memory, so on serverless they're best-effort for each instance.

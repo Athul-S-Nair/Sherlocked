@@ -5,5 +5,11 @@
   { "line_id": "james_fallback", "speaker": "james", "voice_style": "stiff", "text": "I assure you, sir, I would rather not say." },
   { "line_id": "holmes_letter", "speaker": "holmes", "text": "A moneylender's letter, and not addressed to the master of the house." },
   { "line_id": "holmes_key", "speaker": "holmes", "text": "Two keys, Watson. One in Her Ladyship's purse. The other hangs in the butler's pantry." },
-  { "line_id": "holmes_emma", "speaker": "holmes", "text": "The new maid, seen near the study at nine. Interesting, though perhaps not as interesting as it appears." }
+  { "line_id": "holmes_emma", "speaker": "holmes", "text": "The new maid, seen near the study at nine. Interesting, though perhaps not as interesting as it appears." },
+  { "line_id": "intro_london", "speaker": "holmes", "text": "Saturday night, in Mayfair. Lady Mary Ashford gave a dinner party for twelve." },
+  { "line_id": "intro_dinner", "speaker": "holmes", "text": "Her butler, James, served every course himself. Or so he tells us." },
+  { "line_id": "intro_study", "speaker": "holmes", "text": "Upstairs, her study stayed locked all evening. By midnight, her blue necklace was gone." },
+  { "line_id": "intro_james", "speaker": "holmes", "text": "Twenty years of loyal service. A man of perfect manners, with one great weakness: his son, Peter." },
+  { "line_id": "intro_peter", "speaker": "holmes", "text": "Of late, young Peter has fallen in with dangerous company. His father has not slept well since." },
+  { "line_id": "intro_baker", "speaker": "holmes", "text": "Tonight, James sits across my desk at Baker Street. Let us see what he is hiding." }
 ]

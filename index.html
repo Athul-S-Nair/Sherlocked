@@ -2,9 +2,106 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Baker Street: The Blue Necklace</title>
+<link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-<p>The game scene arrives in Milestone 3. For now, use the <a href="/test/chat.html">engine test page</a>.</p>
+<div id="stage">
+  <canvas id="scene"></canvas>
+  <div id="ui">
+    <div id="evidence" class="frame chip">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span>Evidence: <span id="evCount">0</span>/3</span>
+    </div>
+    <div id="meters" class="frame">
+      <div class="turn">Turn <span id="turnNow">1</span> of <span id="turnMax">8</span></div>
+      <div class="meter"><span>Pressure</span><div class="bar"><i id="pressureBar"></i></div></div>
+      <div class="meter"><span>Trust</span><div class="bar trust"><i id="trustBar"></i></div></div>
+    </div>
+    <button type="button" id="lean" class="frame chip" title="Hold to lean in (or hold the right mouse button)"><span class="alert">!</span> Lean In</button>
+
+    <div id="tooltip" hidden></div>
+
+    <div id="dialog" class="frame" hidden><span id="speaker"></span><span id="line"></span></div>
+
+    <form id="bar" autocomplete="off">
+      <input id="text" class="frame" placeholder="Ask James something..." disabled>
+      <button id="ask" class="frame" disabled>Ask</button>
+      <button type="button" id="mic" class="frame" hidden disabled title="Hold to talk, release to send. Or hold Space when the text box is not focused.">Hold to talk</button>
+    </form>
+
+    <div id="card" class="backdrop" hidden>
+      <div class="panel paper">
+        <h2 id="cardTitle"></h2>
+        <p id="cardText"></p>
+        <div class="buttons">
+          <button type="button" id="present" class="frame">Present to James</button>
+          <button type="button" id="closeCard" class="frame">Put it down</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. Title: the Begin click also unlocks browser audio for the video and voices. -->
+    <div id="title" class="backdrop solid">
+      <div class="panel frame center">
+        <h1>The Blue Necklace</h1>
+        <p class="tagline">A Sherlock Holmes interrogation</p>
+        <p class="small">About 3 minutes &middot; Sound on &middot; Typing works, voice is optional</p>
+        <div class="buttons"><button type="button" id="beginBtn" class="frame">Begin</button></div>
+        <p class="credit">Voices by ElevenLabs</p>
+      </div>
+    </div>
+
+    <!-- 2. Intro cutscene, narrated by Holmes (src/cutscene.js). -->
+    <div id="cutscene" class="backdrop solid" hidden>
+      <canvas id="cutCanvas"></canvas>
+      <p id="caption"></p>
+      <button type="button" id="skip" class="frame">Skip &rsaquo;</button>
+    </div>
+
+    <!-- 3. Briefing: the case and the rules. -->
+    <div id="briefing" class="backdrop solid" hidden>
+      <div class="panel frame wide">
+        <div class="cols">
+          <section>
+            <h2>The case</h2>
+            <p>Saturday night, the Ashford house in Mayfair. During Lady Mary's dinner party, her blue necklace vanished from her locked study.</p>
+            <p>James has been her butler for twenty years. He says he served dinner all evening. He is proper, loyal, and quietly devoted to his grown son, Peter.</p>
+            <p>He has come to Baker Street to answer your questions. Get the truth out of him.</p>
+          </section>
+          <section>
+            <h2>How to win</h2>
+            <ul>
+              <li>Get James to <b>confess</b> within <b>8 turns</b>.</li>
+              <li><b>Pressure</b> rises when you confront him with evidence that matters. Click an item on the desk, then <i>Present to James</i>.</li>
+              <li><b>Trust</b> rises when you show you understand why a good man might do a bad thing.</li>
+              <li>He confesses only when Pressure and Trust are both high and he feels understood.</li>
+              <li>Insult him (thief, liar) and he shuts down. Do it twice, or lose his trust entirely, and he walks out.</li>
+              <li>Not every clue points where it seems to.</li>
+            </ul>
+            <h2>Controls</h2>
+            <ul>
+              <li>Type and press Enter, or hold <b>Space</b> / <i>Hold to talk</i> to speak (Chrome, Edge).</li>
+              <li>Move the mouse to the screen edges, or drag, to look around.</li>
+              <li>Hold right-click or <i>Lean In</i> to study his face.</li>
+            </ul>
+          </section>
+        </div>
+        <div class="buttons"><button type="button" id="startBtn" class="frame">Start the interview</button></div>
+      </div>
+    </div>
+
+    <!-- 4. Ending. -->
+    <div id="ending" class="backdrop" hidden>
+      <div class="panel frame center">
+        <h1 id="endTitle"></h1>
+        <p id="endText"></p>
+        <div class="buttons"><button type="button" id="againBtn" class="frame">Play again</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>
